@@ -235,7 +235,12 @@ app.post("/clientSignup",function(req,res){
 
 //request for initial Connection
 app.post("/initialConnect",function(req,res){
+  verifyAndGetUID(req.body.IDToken).then(function(UID){
+    if(UID)
+    {
 
+    }
+  })
 })
 
 //post request by expert to connect to a scout
@@ -361,4 +366,4 @@ app.post("/requestByClient",function(req,res){
   })
 })
 
-app.listen(8083);
+app.listen(8080);
