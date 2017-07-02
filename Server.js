@@ -194,8 +194,8 @@ var verifyAndGetUIDDummy = function(){
 }
 
 
-//post route to get email and set up Patrol record
-app.get("/expertSignup",function(req,res){
+//post route to post email and set up Patrol record
+app.post("/expertSignup",function(req,res){
 
   verifyAndGetUID(req.body.IDToken).then(function(UID){
     if(UID != null)
@@ -215,7 +215,7 @@ app.get("/expertSignup",function(req,res){
 })
 
 //post route to get email and set up Scout record
-app.get("/clientSignup",function(req,res){
+app.post("/clientSignup",function(req,res){
 
   verifyAndGetUID(req.body.IDToken).then(function(UID){
     if(UID != null)
@@ -234,12 +234,12 @@ app.get("/clientSignup",function(req,res){
 })
 
 //request for initial Connection
-app.get("/initialConnect",function(req,res){
+app.post("/initialConnect",function(req,res){
 
 })
 
 //post request by expert to connect to a scout
-app.get("/requestByExpert",function(req,res){
+app.post("/requestByExpert",function(req,res){
   var result = "";
   verifyAndGetUID(req.body.IDToken).then(function(eUID){ //expert's UID is returned after decoding the ID token
     if(eUID != null)
@@ -301,7 +301,7 @@ app.get("/requestByExpert",function(req,res){
   })
 })
 
-app.get("/requestByClient",function(req,res){
+app.post("/requestByClient",function(req,res){
   var result = "";
   verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token
     if(cUID != null)
