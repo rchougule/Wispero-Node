@@ -4,7 +4,7 @@ var express = require("express");
 var cors = require("cors");
 var app = express();
 var bodyParser = require('body-parser')
-var serviceAccount = require("./s.json");
+var serviceAccount = require("./wispero-172517.json");
 
 app.use( bodyParser.json() );       // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
@@ -16,7 +16,7 @@ app.use(cors());
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://wispero-921f9.firebaseio.com"
+  databaseURL: "https://wispero-172517.firebaseio.com"
 });
 
 var db = admin.database();
@@ -30,6 +30,12 @@ var ref = db.ref("/");
 
 //var uid = "KaZnhyEsjcaoaVYKETA2oczEOgP2";
 //get user records by the UID obtained after decoding the ID token received via the request from the client( Expert Device)
+
+app.post("/check",function(req,res){
+  console.log(req.body);
+  console.log("another\n"+req.body.name)
+  res.send("hello!"+req.body.name);
+})
 var getRecordByUID = function(uid)
 {
   return new Promises(function(resolve,reject){
