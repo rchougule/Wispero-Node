@@ -14,11 +14,6 @@ app.use(express.json());       // to support JSON-encoded bodies
 app.use(express.urlencoded()); // to support URL-encoded bodies
 app.use(cors());
 
-const Console = function(Value)
-{
-  console.log(Value);
-}
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://wispero-921f9.firebaseio.com"
@@ -33,7 +28,7 @@ var ref = db.ref("/");
   console.log(snapshot.val());
 });*/
 
-var uid = "KaZnhyEsjcaoaVYKETA2oczEOgP2";
+//var uid = "KaZnhyEsjcaoaVYKETA2oczEOgP2";
 //get user records by the UID obtained after decoding the ID token received via the request from the client( Expert Device)
 var getRecordByUID = function(uid)
 {
@@ -53,10 +48,9 @@ var getRecordByUID = function(uid)
   })
 }
 
+//var email = "abc@gmail.com"
 
 //get user records by the email ID to verify ...
-var email = "abc@gmail.com"
-
 var getRecordByEmail = function(email)
 {
   return new Promises(function(resolve,reject)
@@ -203,11 +197,11 @@ var verifyAndGetUIDDummy = function(){
 //post route to get email and set up Patrol record
 app.get("/expertSignup",function(req,res){
 
-  verifyAndGetUIDDummy().then(function(UID){
+  verifyAndGetUID(req.body.IDToken).then(function(UID){
     if(UID != null)
     {
       console.log("Expert UID Verified\nUpdating Patrol for UID : "+UID)
-      return newExpert(UID,"regToken");
+      return newExpert(UID,req.body.regToken);
     }
     else
     {
@@ -223,11 +217,11 @@ app.get("/expertSignup",function(req,res){
 //post route to get email and set up Scout record
 app.get("/clientSignup",function(req,res){
 
-  verifyAndGetUIDDummy().then(function(UID){
+  verifyAndGetUID(req.body.IDToken).then(function(UID){
     if(UID != null)
     {
       console.log("Client UID Verified\nUpdating Scout for UID : "+UID)
-      return newClient(UID,"regToken");
+      return newClient(UID,req.body.regToken);
     }
     else
     {
@@ -247,10 +241,10 @@ app.get("/initialConnect",function(req,res){
 //post request by expert to connect to a scout
 app.get("/requestByExpert",function(req,res){
   var result = "";
-  verifyAndGetUIDDummy().then(function(eUID){ //expert's UID is returned after decoding the ID token
+  verifyAndGetUID(req.body.IDToken).then(function(eUID){ //expert's UID is returned after decoding the ID token
     if(eUID != null)
     {
-      return getRecordByEmail("abc@gmail.com").then(function(cUID){
+      return getRecordByEmail(req.body.clientEmailID).then(function(cUID){
         if(cUID != null)
         {
           var scoutRef = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/incoming/pending");
@@ -309,13 +303,13 @@ app.get("/requestByExpert",function(req,res){
 
 app.get("/requestByClient",function(req,res){
   var result = "";
-  verifyAndGetUIDDummy().then(function(cUID){ //client's UID is returned after decoding the ID token
+  verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token
     if(cUID != null)
     {
-      return getRecordByEmail("abc@gmail.com").then(function(eUID){
+      return getRecordByEmail(req.body.expertEmailID).then(function(eUID){
         if(eUID != null)
         {
-          eUID = "expertKaZnhyEsjcaoaVYKETA2oczEOgP2";
+          //eUID = "expertKaZnhyEsjcaoaVYKETA2oczEOgP2";
           var scoutRef = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/outgoing/pending");
           var scoutRefChild = scoutRef.child(eUID);
 
