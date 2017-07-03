@@ -103,6 +103,7 @@ var newClient = function(UID,regToken)
       ScoRef.child(UID).once('value',function(snapshot){
         var userRecordPresent = (snapshot.val()!==null);
         resolve(userRecordPresent);
+      })
     }).then(function(userRecordPresentBool){
       if(!userRecordPresentBool)
       {
@@ -119,6 +120,13 @@ var newClient = function(UID,regToken)
                   approved:"null"
                 },
                 outgoing:{
+                  pending:"null",
+                  rejected:"null",
+                  approved:"null"
+                }
+              },
+              scanRequests:{
+                incoming:{
                   pending:"null",
                   rejected:"null",
                   approved:"null"
@@ -149,8 +157,6 @@ var newClient = function(UID,regToken)
         console.log("Scout Already Present");
       }
     })
-  })
-
 }
 
 var newExpert = function(UID,regToken)
@@ -181,6 +187,13 @@ var newExpert = function(UID,regToken)
                 rejected:"null",
                 approved:"null"
               }
+            },
+            scanRequests:{
+              outgoing:{
+                pending:"null",
+                rejected:"null",
+                approved:"null"
+              }
             }
           }
         })
@@ -195,9 +208,9 @@ var newExpert = function(UID,regToken)
 
 }
 
-var verifyAndGetUIDDummy = function(){
+var verifyAndGetUIDDummy = function(yelo){
   return new Promises(function(resolve,reject){
-    resolve("KaZnhyEsjcaoaVYKETA2oczEOgP2");
+    resolve("BEkH7Dd9DaZVybmx42nAXpEPliG3");
   })
 }
 
@@ -256,7 +269,23 @@ app.post("/initialConnectionApprovalByClient",function(req,res){
         var scoutRef = db.ref("Scout/"+cUID+"/appConfig");
         var scoutRefChild = scoutRef.child("currentlyConnectedPatrol")
 
+
+        var scoutRefApproved = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/incoming/approved");
+        var scoutRefChildApproved = scoutRefApproved.child(eUID);
+
+        var patRefApproved = db.ref("Patrol/"+eUID+"/scoutRequests/outgoing/approved");
+        var patRefChildApproved = patRefApproved.child(cUID)
+
+
+        var scoutRefPending = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/incoming/pending");
+        var scoutRefChildPending = scoutRefPending.child(eUID);
+
+        var patRefPending = db.ref("Patrol/"+eUID+"/scoutRequests/outgoing/pending");
+        var patRefChildPending = patRefPending.child(cUID);
+
+
         getRecordByUID(cUID).then(function(clientEmailID){
+          //updating the currentlyConnectedNodes of Scout and Patrol
           patRefChild.update({
             [cUID]:clientEmailID
           })
@@ -267,7 +296,25 @@ app.post("/initialConnectionApprovalByClient",function(req,res){
           })
           console.log("currentlyConnectedPatrol Updated");
         }).then(function(){
+          //Updating the approved nodes of Scout and Patrol
+          scoutRefChildApproved.update({
+            "typeOfRequest":"Initial Connection",
+            "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+          }).then(function(){
+            patRefChildApproved.update({
+              "typeOfRequest":"Initial Connection",
+              "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+            })
+          })
           //to move the request from pending nodes to approved nodes
+        }).then(function(){
+          //Removing the pending nodes of Scout and Patrol
+          scoutRefChildPending.remove().then(function(){
+            console.log("Scout Pending Node Removed");
+          })
+          patRefChildPending.remove().then(function(){
+            console.log("Patrol Pending Node Removed")
+          })
         })
       })
     }
@@ -281,11 +328,11 @@ app.post("/initialConnectionApprovalByClient",function(req,res){
 
 //initial connection approval by expert route
 app.post("/initialConnectionApprovalByExpert",function(req,res){
-  verifyAndGetUID(req.body.IDToken).then(function(eUID){
+  verifyAndGetUID(req.body.IDToken).then(function(eUID){ //req.body.IDToken of expert
     if(eUID)
     {
       console.log("Expert ID Token Verified");
-      getRecordByEmail(req.body.clientEmail).then(function(cUID){
+      getRecordByEmail(req.body.clientEmail).then(function(cUID){ //req.body.clientEmail
         console.log("Client UID Retrieved");
 
         var patRef = db.ref("Patrol/"+eUID);
@@ -294,7 +341,23 @@ app.post("/initialConnectionApprovalByExpert",function(req,res){
         var scoutRef = db.ref("Scout/"+cUID+"/appConfig");
         var scoutRefChild = scoutRef.child("currentlyConnectedPatrol")
 
+
+        var scoutRefApproved = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/outgoing/approved");
+        var scoutRefChildApproved = scoutRefApproved.child(eUID);
+
+        var patRefApproved = db.ref("Patrol/"+eUID+"/scoutRequests/incoming/approved");
+        var patRefChildApproved = patRefApproved.child(cUID)
+
+
+        var scoutRefPending = db.ref("Scout/"+cUID+"/appConfig/patrolRequests/outgoing/pending");
+        var scoutRefChildPending = scoutRefPending.child(eUID);
+
+        var patRefPending = db.ref("Patrol/"+eUID+"/scoutRequests/incoming/pending");
+        var patRefChildPending = patRefPending.child(cUID)
+
+
         getRecordByUID(eUID).then(function(expertEmailID){
+          //updating the currentlyConnectedNodes of Scout and Patrol
           scoutRefChild.update({
             [eUID]:expertEmailID
           }).then(function(){
@@ -302,12 +365,30 @@ app.post("/initialConnectionApprovalByExpert",function(req,res){
           })
         }).then(function(){
           patRefChild.update({
-            [cUID]:req.body.clientEmail
+            [cUID]:req.body.clientEmail //req.body.clientEmail
           }).then(function(){
             console.log("currentlyConnectedScouts Updated");
           })
         }).then(function(){
-          //to move the request from pending nodes to approved nodes
+          //updating the Approved Nodes of Scout and Patrol
+          scoutRefChildApproved.update({
+            "typeOfRequest":"Initial Connection",
+            "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+          }).then(function(){
+            patRefChildApproved.update({
+              "typeOfRequest":"Initial Connection",
+              "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+            })
+            console.log("Approved Nodes Updated for Scout and Patrol")
+          })
+        }).then(function(){
+          //Removing the Pending child nodes of Scout and Patrol
+          scoutRefChildPending.remove().then(function(){
+            console.log("Scout Pending Node Child Removed");
+          })
+          patRefChildPending.remove().then(function(){
+            console.log("Patrol Pending Node Child Removed")
+          })
         })
       })
     }
@@ -355,9 +436,7 @@ app.post("/initialRequestByExpert",function(req,res){
             result = "Successful";
             console.log("Expert Request : Request Updated into Patrol's and Scout's Pending Node");
           })
-
         })
-
         }
         else
         {
@@ -386,10 +465,10 @@ app.post("/initialRequestByExpert",function(req,res){
 
 app.post("/initialRequestByClient",function(req,res){
   var result = "";
-  verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token
+  verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token // req.body.IDToken
     if(cUID != null)
     {
-      return getRecordByEmail(req.body.expertEmailID).then(function(eUID){
+      return getRecordByEmail(req.body.expertEmailID).then(function(eUID){  //req.body.expertEmailID
         if(eUID != null)
         {
           //eUID = "expertKaZnhyEsjcaoaVYKETA2oczEOgP2";
