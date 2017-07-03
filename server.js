@@ -36,6 +36,8 @@ app.post("/check",function(req,res){
   console.log("another\n"+req.body.name)
   res.send("hello!"+req.body.name);
 })
+
+app.post("/")
 var getRecordByUID = function(uid)
 {
   return new Promises(function(resolve,reject){
@@ -239,18 +241,86 @@ app.post("/clientSignup",function(req,res){
   })
 })
 
-//request for initial Connection
-app.post("/initialConnect",function(req,res){
-  verifyAndGetUID(req.body.IDToken).then(function(UID){
-    if(UID)
+//initial Connection Approval by Client
+app.post("/initialConnectionApprovalByClient",function(req,res){
+  verifyAndGetUID(req.body.IDToken).then(function(cUID){
+    if(cUID)
     {
+        console.log("Client ID Token Verified");
+      getRecordByEmail(req.body.expertEmail).then(function(eUID){
+        console.log("Expert UID Retrieved");
 
+        var patRef = db.ref("Patrol/"+eUID);
+        var patRefChild = patRef.child("currentlyConnectedScouts");
+
+        var scoutRef = db.ref("Scout/"+cUID+"/appConfig");
+        var scoutRefChild = scoutRef.child("currentlyConnectedPatrol")
+
+        getRecordByUID(cUID).then(function(clientEmailID){
+          patRefChild.update({
+            [cUID]:clientEmailID
+          })
+          console.log("currentlyConnectedScouts Updated");
+        }).then(function(){
+          scoutRefChild.update({
+            [eUID]:req.body.expertEmail
+          })
+          console.log("currentlyConnectedPatrol Updated");
+        }).then(function(){
+          //to move the request from pending nodes to approved nodes
+        })
+      })
     }
+    else {
+      console.log("Client UID Not Found");
+    }
+  }).then(function(){
+    res.send("Request Processed");
+  })
+})
+
+//initial connection approval by expert route
+app.post("/initialConnectionApprovalByExpert",function(req,res){
+  verifyAndGetUID(req.body.IDToken).then(function(eUID){
+    if(eUID)
+    {
+      console.log("Expert ID Token Verified");
+      getRecordByEmail(req.body.clientEmail).then(function(cUID){
+        console.log("Client UID Retrieved");
+
+        var patRef = db.ref("Patrol/"+eUID);
+        var patRefChild = patRef.child("currentlyConnectedScouts");
+
+        var scoutRef = db.ref("Scout/"+cUID+"/appConfig");
+        var scoutRefChild = scoutRef.child("currentlyConnectedPatrol")
+
+        getRecordByUID(eUID).then(function(expertEmailID){
+          scoutRefChild.update({
+            [eUID]:expertEmailID
+          }).then(function(){
+            console.log("currentlyConnectedPatrol Updated");
+          })
+        }).then(function(){
+          patRefChild.update({
+            [cUID]:req.body.clientEmail
+          }).then(function(){
+            console.log("currentlyConnectedScouts Updated");
+          })
+        }).then(function(){
+          //to move the request from pending nodes to approved nodes
+        })
+      })
+    }
+    else {
+      console.log("Expert UID Not Found");
+    }
+  }).then(function(){
+    res.send("Request Processed");
   })
 })
 
 //post request by expert to connect to a scout
-app.post("/requestByExpert",function(req,res){
+app.post("/initialRequestByExpert",function(req,res){
   var result = "";
   verifyAndGetUID(req.body.IDToken).then(function(eUID){ //expert's UID is returned after decoding the ID token
     if(eUID != null)
@@ -262,19 +332,21 @@ app.post("/requestByExpert",function(req,res){
           var scoutRefChild = scoutRef.child(eUID);
 
           var patRef = db.ref("Patrol/"+eUID+"/scoutRequests/outgoing/pending");
-          var patRefChild = patRef.child(cUID)
+          var patRefChild = patRef.child(cUID);
 
           getRecordByUID(eUID).then(function(emailFrom)
           {
-          scoutRefChild.push({
+          scoutRefChild.update({
             "receivedFrom":emailFrom,
+            "typeOfRequest":"Initial Connection",
             "receivedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
           })
           .then(function()
           {
             getRecordByUID(cUID).then(function(emailTo){
-              patRefChild.push({
+              patRefChild.update({
                 "sentTo":emailTo,
+                "typeOfRequest":"Initial Connection",
                 "sentAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
               })
             })
@@ -312,7 +384,7 @@ app.post("/requestByExpert",function(req,res){
   })
 })
 
-app.post("/requestByClient",function(req,res){
+app.post("/initialRequestByClient",function(req,res){
   var result = "";
   verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token
     if(cUID != null)
@@ -328,15 +400,17 @@ app.post("/requestByClient",function(req,res){
           var patRefChild = patRef.child(cUID)
 
           getRecordByUID(eUID).then(function(sentTo){
-            scoutRefChild.push({
+            scoutRefChild.update({
               "sentTo":sentTo,
+              "typeOfRequest":"Initial Connection",
               "sentAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
             })
             .then(function()
             {
               getRecordByUID(cUID).then(function(receivedFrom){
-                patRefChild.push({
+                patRefChild.update({
                   "receivedFrom":receivedFrom,
+                  "typeOfRequest":"Initial Connection",
                   "receivedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
                 })
               })
