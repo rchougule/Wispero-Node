@@ -14,13 +14,13 @@ app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 //app.use(express.urlencoded()); // to support URL-encoded bodies
 app.use(cors());
 
-admin.initializeApp({
+admin.initializeApp({                                       //initializing the admin SDK to connect to firebase
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://wispero-172517.firebaseio.com"
 });
 
-var db = admin.database();
-var ref = db.ref("/");
+var db = admin.database();                                  //db contains the database reference
+var ref = db.ref("/");                                      //to get the reference of the root of the database
 
 //to get snapshot of the database
 
@@ -31,15 +31,14 @@ var ref = db.ref("/");
 //var uid = "KaZnhyEsjcaoaVYKETA2oczEOgP2";
 //get user records by the UID obtained after decoding the ID token received via the request from the client( Expert Device)
 
-app.post("/check",function(req,res){
+app.post("/check",function(req,res){                         //check route for testing post request
   console.log(req.body);
   console.log("another\n"+req.body.name)
   res.send("hello!"+req.body.name);
 })
 
-app.post("/")
-var getRecordByUID = function(uid)
-{
+// ======================================================================================================================================================================
+var getRecordByUID = function(uid){                          //Getting the email by UID
   return new Promises(function(resolve,reject){
 
     admin.auth().getUser(uid)
@@ -56,11 +55,7 @@ var getRecordByUID = function(uid)
   })
 }
 
-//var email = "abc@gmail.com"
-
-//get user records by the email ID to verify ...
-var getRecordByEmail = function(email)
-{
+var getRecordByEmail = function(email){                      //getting the UID by the email ID
   return new Promises(function(resolve,reject)
   {
     admin.auth().getUserByEmail(email)
@@ -77,9 +72,7 @@ var getRecordByEmail = function(email)
   })
 }
 
-
-var verifyAndGetUID = function(IDtoken)
-{
+var verifyAndGetUID = function(IDtoken){                     //IDToken for verification of the user's presence and returning the UID
   return new Promises(function(resolve,reject){
 
     admin.auth().verifyIdToken(IDtoken)
@@ -94,8 +87,7 @@ var verifyAndGetUID = function(IDtoken)
   })
 }
 
-var newClient = function(UID,regToken)
-{
+var newClient = function(UID,regToken){                      //UID of the client,regToken of the current device
     var ref = db.ref("/");
     var ScoRef = ref.child("Scout");
 
@@ -159,8 +151,26 @@ var newClient = function(UID,regToken)
     })
 }
 
-var newExpert = function(UID,regToken)
-{
+var checkIfChildPresent = function(childToCheck){  //(db reference, node under which the childToCheck is present,childToCheck for presence)
+  return new Promises(function(resolve,reject){
+    db.ref(childToCheck).once('value',function(snapshot){
+      var recordPresent = (snapshot.val() !== null);
+      resolve(recordPresent);
+    })
+  })
+}
+
+var removeChild = function(childToRemove){                      //(db reference,reference to the child to be removed)
+  return new Promises(function(resolve,reject){
+    db.ref(childToRemove).remove().then(function(result){
+      console.log(REF+" : Removed");
+      resolve("Successfully Removed");
+    })
+  })
+
+}
+
+var newExpert = function(UID,regToken){                      //UID of the expert,regToken of the current device
     var ref = db.ref("/");
     var PatRef = ref.child("Patrol");
 
@@ -208,13 +218,14 @@ var newExpert = function(UID,regToken)
 
 }
 
-var verifyAndGetUIDDummy = function(yelo){
+var verifyAndGetUIDDummy = function(yelo){                   //dummy function for testing purpose, insert the UID in the resolve to use this function
   return new Promises(function(resolve,reject){
-    resolve("BEkH7Dd9DaZVybmx42nAXpEPliG3");
+    resolve("VEKf5sagVWP1kcEbaykT12Tii2x1");
   })
 }
+//========================================================================================================================================================================
 
-
+//========================================================================================================================================================================
 //post route to post email and set up Patrol record
 app.post("/expertSignup",function(req,res){
 
@@ -254,7 +265,75 @@ app.post("/clientSignup",function(req,res){
   })
 })
 
-//initial Connection Approval by Client
+//request for disconnection by Client
+app.post("/disconnectionRequestByClient",function(req,res){
+  verifyAndGetUID().then((cUID)=>{
+    if(req.body.expertEmail != null)  //req.body.expertEmail
+    {
+      getRecordByEmail(req.body.expertEmail).then((eUID)=>{   //req.body.expertEmail
+        var patRef = "/Patrol/"+eUID+"/currentlyConnectedScouts/"+cUID;
+        var scoutRef = "/Scout/"+cUID+"/appConfig/currentlyConnectedPatrol/"+eUID;
+
+        checkIfChildPresent(scoutRef).then((patrolPresentBool)=>{
+          if(patrolPresentBool)
+          {
+            removeChild(scoutRef).then((result)=>{
+              console.log("#Result After Removal of currentlyConnectedPatrol Node : "+result);
+              removeChild(patRef).then((result)=>{
+                console.log("#Result After Removal of currentlyConnectedScouts Node : "+result);
+              })
+            })
+          }
+          else {
+            console.log(eUID+" : Patrol Not Connected to Scout");
+          }
+        })
+      })
+    }
+    else {
+      console.log("Expert Email ID not Received");
+    }
+  }).then(()=>{
+    console.log("Disconnection Request Processed");
+    res.send("Disconnection Request Processed, Check console for Results");
+  })
+})
+
+//request for disconnection by Expert , updates the currentlyConnectedNodes by deleted the required UIDs
+app.post("/disconnectionRequestByExpert",function(req,res){
+  verifyAndGetUID().then((eUID)=>{
+    if(req.body.clientEmail !== null) //req.body.clientEmail
+    {
+      getRecordByEmail(req.body.clientEmail).then((cUID)=>{ //req.body.clientEmail
+        var patRef = "/Patrol/"+eUID+"/currentlyConnectedScouts/"+cUID;
+        var scoutRef = "/Scout/"+cUID+"/appConfig/currentlyConnectedPatrol/"+eUID;
+
+        checkIfChildPresent(patRef).then((scoutPresentBool)=>{
+          if(scoutPresentBool)
+          {
+            removeChild(patRef).then((result)=>{
+              console.log("Result After Removal of currentlyConnectedScouts Node : "+result);
+              removeChild(scoutRef).then((result)=>{
+                console.log("Result After Removal of currentlyConnectedPatrol Node : "+result);
+              })
+            });
+          }
+          else {
+            console.log(cUID+" : Scout Not Connected to Patrol")
+          }
+        })
+      })
+    }
+    else {
+      console.log("Client Email ID not Received");
+    }
+  }).then(()=>{
+    console.log("Disconnection Request Processed");
+    res.send("Disconnection Request Processed, Check console for Results");
+  })
+})
+
+//initial Connection Approval by Client, updates the currentlyConnectedNodes of Client and Expert
 app.post("/initialConnectionApprovalByClient",function(req,res){
   verifyAndGetUID(req.body.IDToken).then(function(cUID){
     if(cUID)
@@ -326,7 +405,7 @@ app.post("/initialConnectionApprovalByClient",function(req,res){
   })
 })
 
-//initial connection approval by expert route
+//initial connection approval by expert, updates the currentlyConnectedNodes of Expert and Client
 app.post("/initialConnectionApprovalByExpert",function(req,res){
   verifyAndGetUID(req.body.IDToken).then(function(eUID){ //req.body.IDToken of expert
     if(eUID)
@@ -463,6 +542,7 @@ app.post("/initialRequestByExpert",function(req,res){
   })
 })
 
+//post request by client to connect to a patrol
 app.post("/initialRequestByClient",function(req,res){
   var result = "";
   verifyAndGetUID(req.body.IDToken).then(function(cUID){ //client's UID is returned after decoding the ID token // req.body.IDToken
@@ -525,4 +605,86 @@ app.post("/initialRequestByClient",function(req,res){
   })
 })
 
+//post request by expert for scanning using client's device
+app.post("/scanRequestByExpert",function(req,res){
+  verifyAndGetUID(req.body.IDToken).then((eUID)=>{
+    getUserByEmail(req.body.clientEmail).then((cUID)=>{
+      var patRef = db.ref("Patrol/"+eUID+"/scanRequests/outgoing/pending/");
+      var scoutRef = db.ref("Scout/"+cUID+"/appConfig/scanRequests/incoming/pending/")
+
+      patRef.child(cUID).update({
+        "sentTo":req.body.clientEmail,
+        "typeOfRequest":"Scan Request",
+        "sentAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+      })
+
+      getRecordByUID(eUID).then((expertEmail)=>{
+        scoutRef.child(eUID).update({
+          "receivedFrom":expertEmail,
+          "typeOfRequest":"Scan Request",
+          "receivedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+        })
+      })
+    }).then(()=>{
+      console.log("Scan Request Sent to Client");
+      res.send("Scan Request Sent to Client");
+    })
+  })
+})
+
+//scan request approval by the Client
+//1.remove the pending nodes
+//2.update in the approved nodes
+app.post("/scanApprovalByClient",function(req,res){
+  verifyAndGetUID(req.body.IDToken).then((cUID)=>{
+    getUserByEmail(req.body.expertEmail).then((eUID)=>{
+      var patRefPending = "Patrol/"+eUID+"/scanRequests/outgoing/pending/"+cUID;
+      var scoutRefPending = "Scout/"+cUID+"/appConfig/scanRequests/incoming/pending/"+eUID;
+
+      var patRefApproved = "Patrol/"+eUID+"/scanRequests/outgoing/approved/"+cUID;
+      var scoutRefApproved = "Scout/"+cUID+"/appConfig/scanRequests/incoming/approved/"+eUID;
+
+      checkIfChildPresent(patRefPending).then((result)=>{
+        if(result)
+        {
+          removeChild(patRefPending).then(()=>{
+            console.log(cUID+" : Pending Request Node Removed from Patrol");
+            checkIfChildPresent(scoutRefPending).then((result)=>{
+              if(result)
+              {
+                removeChild(scoutRefPending).then(()=>{
+                  console.log(eUID+" : Pending Request Node Removed from Scout");
+                })
+              }
+              else {
+                console.log(eUID+" : Pending Request Node Not Present in Scout");
+              }
+            })
+          }).then(()=>{
+            scoutRefApproved.push({
+              "receivedFrom":req.body.expertEmail,
+              "typeOfRequest":"Scan Request",
+              "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+            })
+            console.log("Request Approved Node Added in Scout Approved");
+          }).then(()=>{
+            getRecordByUID(cUID).then((clientEmail)=>{
+              patRefApproved.push({
+                "sentTo":clientEmail,
+                "typeOfRequest":"Scan Request",
+                "approvedAt":new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
+              })
+              console.log("Request Approved Node Added in Patrol Approved");
+            })
+          })
+        }
+        else {
+          console.log(cUID+" : Pending Request Node Not Present in Patrol");
+        }
+      })
+    })
+  })
+})
+
+//========================================================================================================================================================================
 app.listen(8080);
